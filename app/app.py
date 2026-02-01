@@ -11,7 +11,9 @@ This file exists to prove:
 Nothing fancy here. This is intentional.
 """
 
+
 from flask import Flask
+from app.routes.session_routes import session_routes
 
 
  # NOTE:
@@ -26,6 +28,7 @@ def create_app() -> Flask:
     to test and extend later without refactoring.
     """
     app = Flask(__name__)
+    app.register_blueprint(session_routes)
 
     @app.route("/")
     def healthCheck():
