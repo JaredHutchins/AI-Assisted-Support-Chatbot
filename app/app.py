@@ -14,6 +14,10 @@ Nothing fancy here. This is intentional.
 from flask import Flask
 
 
+ # NOTE:
+ # This file is intentionally minimal.
+ # Core session logic, state handling, and resolution or escalation decisions
+ # must live outside this file to avoid coupling Flask with domain logic.
 def create_app() -> Flask:
     """
     Application factory.
@@ -24,7 +28,7 @@ def create_app() -> Flask:
     app = Flask(__name__)
 
     @app.route("/")
-    def health_check():
+    def healthCheck():
         """
         Simple sanity check.
 
