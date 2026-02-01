@@ -23,6 +23,22 @@ class SessionContext:
     or presentation logic.
     """
 
+    # Allowed state transitions based strictly on the UML state machine.
+    # Keys represent the current state.
+    # Values represent the set of valid next states.
+    _allowedTransitions = {
+        "Idle": {"IssueCapture"},
+        "IssueCapture": {"KnowledgeRetrieval"},
+        "KnowledgeRetrieval": {
+            "KnowledgeRetrieval",  # Explicit self-loop
+            "ResolutionDelivered",
+            "EscalationPrepared",
+        },
+        "ResolutionDelivered": {"SessionComplete"},
+        "EscalationPrepared": {"SessionComplete"},
+        "SessionComplete": set(),
+    }
+
     def __init__(self, sessionId: str):
         """
         Initialize a new session context.
@@ -40,18 +56,37 @@ class SessionContext:
         self.isResolved = False
         self.isEscalated = False
 
-    def advanceState(self, nextState: str) -> None:
+    def advanceState(self, nextState: str) -> bool:
         """
-        Advance the session to the next deterministic state.
+        Attempt to advance the session to the next deterministic state.
 
-        Validation of allowed transitions must be enforced according
-        to the predefined state flow in the capstone design.
+        The transition is validated against the UML-defined state machine.
+        Invalid transitions are rejected without raising exceptions.
 
         Args:
-            nextState: The next state identifier.
+            nextState: The requested next state identifier.
+
+        Returns:
+            True if the transition succeeded, otherwise False.
         """
-        # Transition validation belongs here once states are confirmed.
+        # Terminal sessions cannot transition further.
+        if self.isTerminal():
+            return False
+
+        # Initial state must be set explicitly from Idle.
+        if self.currentState is None:
+            if nextState != "Idle":
+                return False
+            self.currentState = "Idle"
+            return True
+
+        allowedNextStates = self._allowedTransitions.get(self.currentState, set())
+
+        if nextState not in allowedNextStates:
+            return False
+
         self.currentState = nextState
+        return True
 
     def markResolved(self) -> None:
         """
