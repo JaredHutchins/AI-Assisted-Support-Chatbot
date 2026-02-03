@@ -1,5 +1,3 @@
-
-
 """
 Minimal Flask entry point for the AI-Assisted Support Chatbot (ASC).
 
@@ -14,6 +12,44 @@ Nothing fancy here. This is intentional.
 
 from flask import Flask, render_template, request
 from app.routes.session_routes import session_routes
+
+# Demo knowledge base (deterministic, product-specific structure)
+KNOWLEDGE_BASE = {
+    "Widget A": {
+        "Won't power on": [
+            "Check power cable",
+            "Check battery",
+            "Check battery indicator LED"
+        ],
+        "Physical damage": [
+            "Inspect device casing",
+            "Check for cracked screen",
+            "Verify device powers on at all"
+        ],
+        "Erratic behavior": [
+            "Restart the device",
+            "Check for recent drops or impacts",
+            "Reset device settings"
+        ]
+    },
+    "Widget B": {
+        "Won't power on": [
+            "Check power cable",
+            "Check battery",
+            "Check battery indicator LED"
+        ],
+        "Physical damage": [
+            "Inspect device casing",
+            "Check for cracked screen",
+            "Verify device powers on at all"
+        ],
+        "Erratic behavior": [
+            "Restart the device",
+            "Check for recent drops or impacts",
+            "Reset device settings"
+        ]
+    }
+}
 
 
  # NOTE:
@@ -43,23 +79,94 @@ def create_app() -> Flask:
     @app.route("/session", methods=["GET", "POST"])
     def session_view():
         """
-        Minimal agent UI.
+        Guided agent UI.
 
-        Allows a support agent to start a session and view the
-        current runtime state. Presentation only.
+        Presentation-only workflow that demonstrates:
+        - product selection
+        - problem context
+        - deterministic troubleshooting steps
+        - resolution and escalation paths
         """
-        current_state = None
+        # UI state defaults
+        started = False
+        escalated = False
+        escalation_available = False
+
+        product = None
+        problem = None
+        description = None
+
+        step_index = 0
+        attempted_steps = []
+        current_step = None
+        current_state = "Idle"
 
         if request.method == "POST":
-            session_id = request.form.get("sessionId", "demo1")
+            action = request.form.get("action")
 
-            # Call the API route internally
-            from app.session_context import SessionContext
-            ctx = SessionContext(session_id)
-            ctx.advanceState("Idle")
-            current_state = "Idle"
+            # Initial session start
+            if action == "start":
+                product = request.form.get("product")
+                problem = request.form.get("problem")
+                description = request.form.get("description")
 
-        return render_template("session.html", current_state=current_state)
+                started = True
+                step_index = 0
+                attempted_steps = []
+
+                current_step = KNOWLEDGE_BASE[product][problem][step_index]
+
+            # Troubleshooting loop
+            elif action == "not_resolved":
+                product = request.form.get("product")
+                problem = request.form.get("problem")
+                description = request.form.get("description")
+                step_index = int(request.form.get("step_index"))
+                attempted_steps = request.form.getlist("attempted_steps")
+
+                steps = KNOWLEDGE_BASE[product][problem]
+
+                # Record the step that was just attempted
+                if step_index < len(steps):
+                    attempted_steps.append(steps[step_index])
+
+                # Advance step index
+                step_index += 1
+
+                # Steps exhausted → terminal escalation
+                if step_index >= len(steps):
+                    escalation_available = True
+                    escalated = True
+                    started = False
+                    current_step = None
+                    step_index = len(steps)  # clamp to prevent runaway
+                else:
+                    started = True
+                    current_step = steps[step_index]
+
+            elif action == "resolved":
+                description = request.form.get("description")
+                started = True
+                current_state = "Resolved"
+
+            elif action == "escalate":
+                description = request.form.get("description")
+                escalated = True
+                started = False
+
+        return render_template(
+            "session.html",
+            started=started,
+            escalated=escalated,
+            escalation_available=escalation_available,
+            product=product,
+            problem=problem,
+            description=description,
+            step_index=step_index,
+            attempted_steps=attempted_steps,
+            current_step=current_step,
+            current_state=current_state
+        )
 
     return app
 

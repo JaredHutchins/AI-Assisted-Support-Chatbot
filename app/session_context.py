@@ -1,5 +1,3 @@
-
-
 """
 Core session context for the ASC.
 
@@ -56,6 +54,14 @@ class SessionContext:
         self.isResolved = False
         self.isEscalated = False
 
+        # Issue context (presentation-agnostic)
+        self.product = None
+        self.problem = None
+
+        # Knowledge retrieval tracking
+        self.attemptedSteps = []
+        self.currentStepIndex = 0
+
     def advanceState(self, nextState: str) -> bool:
         """
         Attempt to advance the session to the next deterministic state.
@@ -87,6 +93,35 @@ class SessionContext:
 
         self.currentState = nextState
         return True
+
+    def setIssue(self, product: str, problem: str) -> None:
+        """
+        Capture the product and problem context for this session.
+        """
+        self.product = product
+        self.problem = problem
+        self.attemptedSteps = []
+        self.currentStepIndex = 0
+
+    def recordAttempt(self, step: str) -> None:
+        """
+        Record an attempted troubleshooting step.
+        """
+        self.attemptedSteps.append(step)
+        self.currentStepIndex += 1
+
+    def getSummary(self) -> dict:
+        """
+        Return a summary suitable for escalation handoff.
+        """
+        return {
+            "sessionId": self.sessionId,
+            "product": self.product,
+            "problem": self.problem,
+            "attemptedSteps": list(self.attemptedSteps),
+            "resolved": self.isResolved,
+            "escalated": self.isEscalated,
+        }
 
     def markResolved(self) -> None:
         """

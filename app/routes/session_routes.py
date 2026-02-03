@@ -1,5 +1,3 @@
-
-
 """
 ASC Session Routes
 
@@ -15,6 +13,9 @@ from flask import Blueprint, request, jsonify
 # Session engine (authoritative logic)
 # NOTE: Import path must match existing engine module
 from app.session_context import SessionContext
+
+# In-memory session registry (demo scope only)
+SESSIONS = {}
 
 session_routes = Blueprint("session_routes", __name__, url_prefix="/api/session")
 
@@ -35,40 +36,65 @@ def start_session():
     data = request.get_json(force=True)
 
     session_id = data.get("sessionId")
-    if not session_id:
-        return jsonify({"error": "sessionId is required"}), 400
+    product = data.get("product")
+    issue_description = data.get("issueDescription")
 
-    # Create a new session context (engine is instance-based)
+    if not session_id or not product or not issue_description:
+        return jsonify({"error": "sessionId, product, and issueDescription are required"}), 400
+
     ctx = SessionContext(session_id)
-
-    # Move to the initial runtime state per the diagram
+    ctx.setIssue(product, issue_description)
     ctx.advanceState("Idle")
+
+    SESSIONS[session_id] = ctx
 
     return jsonify({
         "sessionId": session_id,
-        "currentState": "Idle",
+        "currentState": ctx.currentState,
         "terminal": ctx.isTerminal()
     }), 200
 
 
 @session_routes.route("/step", methods=["POST"])
 def submit_step():
-    """
-    Submit the outcome of a troubleshooting step.
+    data = request.get_json(force=True)
 
-    State transition:
-        Knowledge Retrieval ->
-            Knowledge Retrieval | Resolved | Escalated
+    session_id = data.get("sessionId")
+    step = data.get("step")
+    resolved = data.get("resolved")
 
-    Expected JSON:
-        sessionId (str)
-        stepId (str)
-        outcome (str)
-    """
+    if not session_id or session_id not in SESSIONS:
+        return jsonify({"error": "invalid sessionId"}), 400
+
+    ctx = SESSIONS[session_id]
+
+    # If resolved, mark and stop
+    if resolved is True:
+        ctx.markResolved()
+        return jsonify({
+            "sessionId": ctx.sessionId,
+            "currentState": ctx.currentState,
+            "terminal": ctx.isTerminal()
+        }), 200
+
+    # Not resolved: record attempt
+    if step:
+        ctx.recordAttempt(step)
+
+    # HARD STOP: no more steps available → escalate BEFORE advancing index
+    max_steps = ctx.getMaxSteps()  # authoritative per-problem step count
+
+    if ctx.currentStepIndex >= max_steps - 1:
+        ctx.markEscalated()
+        return jsonify(ctx.getSummary()), 200
+
+    # Otherwise continue troubleshooting
     return jsonify({
-        "error": "submit_step not implemented in this build",
-        "status": "not_implemented"
-    }), 501
+        "sessionId": ctx.sessionId,
+        "currentState": ctx.currentState,
+        "stepIndex": ctx.currentStepIndex,
+        "terminal": ctx.isTerminal()
+    }), 200
 
 
 @session_routes.route("/escalate", methods=["POST"])
@@ -83,10 +109,16 @@ def escalate_session():
         sessionId (str)
         reason (str)
     """
-    return jsonify({
-        "error": "escalate not implemented in this build",
-        "status": "not_implemented"
-    }), 501
+    data = request.get_json(force=True)
+
+    session_id = data.get("sessionId")
+    if not session_id or session_id not in SESSIONS:
+        return jsonify({"error": "invalid sessionId"}), 400
+
+    ctx = SESSIONS[session_id]
+    ctx.markEscalated()
+
+    return jsonify(ctx.getSummary()), 200
 
 
 @session_routes.route("/status", methods=["GET"])

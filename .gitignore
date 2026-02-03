@@ -12,3 +12,6 @@ __pycache__/
 # Docs & images (design artifacts)
 *.docx
 *.png
+*.pdf
+*.pptx
+*.jpg
