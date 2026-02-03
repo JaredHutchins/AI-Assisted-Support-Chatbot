@@ -1,0 +1,14 @@
+# Python / virtualenv
+venv/
+__pycache__/
+*.pyc
+
+# Environment
+.env
+
+# OS junk
+.DS_Store
+
+# Docs & images (design artifacts)
+*.docx
+*.png
