@@ -34,14 +34,21 @@ def start_session():
     """
     data = request.get_json(force=True)
 
-    # Delegate to session engine (implementation handled there)
-    result = SessionContext.start_session(
-        session_id=data.get("sessionId"),
-        product=data.get("product"),
-        issue_description=data.get("issueDescription"),
-    )
+    session_id = data.get("sessionId")
+    if not session_id:
+        return jsonify({"error": "sessionId is required"}), 400
 
-    return jsonify(result), 200
+    # Create a new session context (engine is instance-based)
+    ctx = SessionContext(session_id)
+
+    # Move to the initial runtime state per the diagram
+    ctx.advanceState("Idle")
+
+    return jsonify({
+        "sessionId": session_id,
+        "currentState": "Idle",
+        "terminal": ctx.isTerminal()
+    }), 200
 
 
 @session_routes.route("/step", methods=["POST"])
@@ -58,15 +65,10 @@ def submit_step():
         stepId (str)
         outcome (str)
     """
-    data = request.get_json(force=True)
-
-    result = SessionContext.submit_step(
-        session_id=data.get("sessionId"),
-        step_id=data.get("stepId"),
-        outcome=data.get("outcome"),
-    )
-
-    return jsonify(result), 200
+    return jsonify({
+        "error": "submit_step not implemented in this build",
+        "status": "not_implemented"
+    }), 501
 
 
 @session_routes.route("/escalate", methods=["POST"])
@@ -81,14 +83,10 @@ def escalate_session():
         sessionId (str)
         reason (str)
     """
-    data = request.get_json(force=True)
-
-    result = SessionContext.escalate(
-        session_id=data.get("sessionId"),
-        reason=data.get("reason"),
-    )
-
-    return jsonify(result), 200
+    return jsonify({
+        "error": "escalate not implemented in this build",
+        "status": "not_implemented"
+    }), 501
 
 
 @session_routes.route("/status", methods=["GET"])
@@ -103,7 +101,11 @@ def get_status():
         sessionId (str)
     """
     session_id = request.args.get("sessionId")
+    if not session_id:
+        return jsonify({"error": "sessionId is required"}), 400
 
-    result = SessionContext.get_status(session_id=session_id)
-
-    return jsonify(result), 200
+    return jsonify({
+        "sessionId": session_id,
+        "status": "unknown",
+        "terminal": False
+    }), 200

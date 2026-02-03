@@ -12,7 +12,7 @@ Nothing fancy here. This is intentional.
 """
 
 
-from flask import Flask
+from flask import Flask, render_template, request
 from app.routes.session_routes import session_routes
 
 
@@ -39,6 +39,27 @@ def create_app() -> Flask:
         the project wiring is correct.
         """
         return "ASC is running."
+
+    @app.route("/session", methods=["GET", "POST"])
+    def session_view():
+        """
+        Minimal agent UI.
+
+        Allows a support agent to start a session and view the
+        current runtime state. Presentation only.
+        """
+        current_state = None
+
+        if request.method == "POST":
+            session_id = request.form.get("sessionId", "demo1")
+
+            # Call the API route internally
+            from app.session_context import SessionContext
+            ctx = SessionContext(session_id)
+            ctx.advanceState("Idle")
+            current_state = "Idle"
+
+        return render_template("session.html", current_state=current_state)
 
     return app
 
