@@ -38,12 +38,13 @@ def start_session():
     session_id = data.get("sessionId")
     product = data.get("product")
     issue_description = data.get("issueDescription")
+    max_steps = data.get("maxSteps", 3)
 
     if not session_id or not product or not issue_description:
         return jsonify({"error": "sessionId, product, and issueDescription are required"}), 400
 
     ctx = SessionContext(session_id)
-    ctx.setIssue(product, issue_description)
+    ctx.setIssue(product, issue_description, max_steps)
     ctx.advanceState("Idle")
 
     SESSIONS[session_id] = ctx
@@ -84,7 +85,7 @@ def submit_step():
     # HARD STOP: no more steps available → escalate BEFORE advancing index
     max_steps = ctx.getMaxSteps()  # authoritative per-problem step count
 
-    if ctx.currentStepIndex >= max_steps - 1:
+    if ctx.currentStepIndex >= max_steps:
         ctx.markEscalated()
         return jsonify(ctx.getSummary()), 200
 

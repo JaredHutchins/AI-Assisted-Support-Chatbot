@@ -61,6 +61,7 @@ class SessionContext:
         # Knowledge retrieval tracking
         self.attemptedSteps = []
         self.currentStepIndex = 0
+        self.maxSteps = 3
 
     def advanceState(self, nextState: str) -> bool:
         """
@@ -94,7 +95,7 @@ class SessionContext:
         self.currentState = nextState
         return True
 
-    def setIssue(self, product: str, problem: str) -> None:
+    def setIssue(self, product: str, problem: str, maxSteps: int = 3) -> None:
         """
         Capture the product and problem context for this session.
         """
@@ -102,6 +103,7 @@ class SessionContext:
         self.problem = problem
         self.attemptedSteps = []
         self.currentStepIndex = 0
+        self.maxSteps = max(1, int(maxSteps))
 
     def recordAttempt(self, step: str) -> None:
         """
@@ -109,6 +111,12 @@ class SessionContext:
         """
         self.attemptedSteps.append(step)
         self.currentStepIndex += 1
+
+    def getMaxSteps(self) -> int:
+        """
+        Return the configured maximum number of troubleshooting steps.
+        """
+        return self.maxSteps
 
     def getSummary(self) -> dict:
         """
