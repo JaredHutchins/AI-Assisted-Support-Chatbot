@@ -18,7 +18,7 @@ The ASC is intended as an **internal decision‑support tool**, not an end‑use
   - Core session engine and reasoning logic  
   - State‑managed troubleshooting flows  
   - Escalation handling and session completion logic
-- **templates/** – HTML templates for the web interface  
+- **app/templates/** – HTML templates for the web interface  
 - **static/** – Basic CSS for layout and presentation  
 - **data/** – JSON files defining knowledge articles, troubleshooting steps, and flows  
 - **README.md**  
@@ -49,11 +49,11 @@ The ASC is intended as an **internal decision‑support tool**, not an end‑use
    ```
 4. Run the Flask application:
    ```
-   python app.py
+   python -m app.app
    ```
 5. Open a browser and navigate to:
    ```
-   http://localhost:5000
+   http://127.0.0.1:5000/session
    ```
 
 ---
