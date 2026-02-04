@@ -11,6 +11,7 @@ Nothing fancy here. This is intentional.
 
 
 from flask import Flask, render_template, request
+from app.flows.product_troubleshooting_flow import ProductTroubleshootingFlow
 from app.routes.session_routes import session_routes
 from app.session_context import SessionContext
 
@@ -51,6 +52,9 @@ KNOWLEDGE_BASE = {
         ]
     }
 }
+
+# Reasoning component aligned with UML flow structure.
+FLOW_ENGINE = ProductTroubleshootingFlow(KNOWLEDGE_BASE)
 
 
  # NOTE:
@@ -109,7 +113,7 @@ def create_app() -> Flask:
                 return 0
 
         def get_steps(selected_product: str, selected_problem: str) -> list:
-            return KNOWLEDGE_BASE.get(selected_product, {}).get(selected_problem, [])
+            return FLOW_ENGINE.retrieveArticle(selected_product, selected_problem)
 
         if request.method == "POST":
             action = request.form.get("action")
@@ -126,7 +130,7 @@ def create_app() -> Flask:
                     started = True
                     step_index = ctx.currentStepIndex
                     attempted_steps = list(ctx.attemptedSteps)
-                    current_step = steps[step_index]
+                    current_step = FLOW_ENGINE.getNextStep(product, problem, step_index)
                     current_state = ctx.currentState
 
             # Troubleshooting loop
@@ -146,11 +150,7 @@ def create_app() -> Flask:
                     stepIndex=step_index,
                     maxSteps=len(steps)
                 ):
-                    current_step = (
-                        steps[ctx.currentStepIndex]
-                        if 0 <= ctx.currentStepIndex < len(steps)
-                        else None
-                    )
+                    current_step = FLOW_ENGINE.getNextStep(product, problem, ctx.currentStepIndex)
 
                     escalated_now = ctx.continueTroubleshooting(current_step)
                     attempted_steps = list(ctx.attemptedSteps)
@@ -165,7 +165,7 @@ def create_app() -> Flask:
                     else:
                         started = True
                         current_state = ctx.currentState
-                        current_step = steps[step_index]
+                        current_step = FLOW_ENGINE.getNextStep(product, problem, step_index)
 
             elif action == "resolved":
                 product = request.form.get("product")
@@ -183,11 +183,7 @@ def create_app() -> Flask:
                     stepIndex=step_index,
                     maxSteps=len(steps)
                 ):
-                    current_step = (
-                        steps[ctx.currentStepIndex]
-                        if 0 <= ctx.currentStepIndex < len(steps)
-                        else None
-                    )
+                    current_step = FLOW_ENGINE.getNextStep(product, problem, ctx.currentStepIndex)
                     if current_step and ctx.resolveTroubleshooting(current_step):
                         attempted_steps = list(ctx.attemptedSteps)
                         step_index = ctx.currentStepIndex
