@@ -145,7 +145,18 @@ def create_app() -> Flask:
                     current_step = steps[step_index]
 
             elif action == "resolved":
+                product = request.form.get("product")
+                problem = request.form.get("problem")
                 description = request.form.get("description")
+                step_index = int(request.form.get("step_index", 0))
+                attempted_steps = request.form.getlist("attempted_steps")
+
+                steps = KNOWLEDGE_BASE[product][problem]
+                if 0 <= step_index < len(steps):
+                    current_step = steps[step_index]
+                    if not attempted_steps or attempted_steps[-1] != current_step:
+                        attempted_steps.append(current_step)
+
                 started = True
                 current_state = "Resolved"
 
