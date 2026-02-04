@@ -10,6 +10,7 @@ Thin HTTP orchestration layer only.
 
 from flask import Blueprint, request, jsonify
 
+from app.knowledge_base import get_max_steps
 # Session engine (authoritative logic)
 # NOTE: Import path must match existing engine module
 from app.session_context import SessionContext
@@ -38,13 +39,23 @@ def start_session():
     session_id = data.get("sessionId")
     product = data.get("product")
     issue_description = data.get("issueDescription")
+    requested_max_steps = data.get("maxSteps")
 
     if not session_id or not product or not issue_description:
         return jsonify({"error": "sessionId, product, and issueDescription are required"}), 400
 
+    if requested_max_steps is None:
+        max_steps = get_max_steps(product, issue_description, default=3)
+    else:
+        try:
+            max_steps = max(1, int(requested_max_steps))
+        except (TypeError, ValueError):
+            return jsonify({"error": "maxSteps must be a positive integer"}), 400
+
     ctx = SessionContext(session_id)
-    ctx.setIssue(product, issue_description)
-    ctx.advanceState("Idle")
+    initialized = ctx.startSession(product, issue_description, max_steps)
+    if not initialized:
+        return jsonify({"error": "failed to initialize session state"}), 500
 
     SESSIONS[session_id] = ctx
 
@@ -70,22 +81,17 @@ def submit_step():
 
     # If resolved, mark and stop
     if resolved is True:
-        ctx.markResolved()
+        if not ctx.markResolved():
+            return jsonify({"error": "invalid state transition for resolution"}), 400
         return jsonify({
             "sessionId": ctx.sessionId,
             "currentState": ctx.currentState,
             "terminal": ctx.isTerminal()
         }), 200
 
-    # Not resolved: record attempt
-    if step:
-        ctx.recordAttempt(step)
-
-    # HARD STOP: no more steps available → escalate BEFORE advancing index
-    max_steps = ctx.getMaxSteps()  # authoritative per-problem step count
-
-    if ctx.currentStepIndex >= max_steps - 1:
-        ctx.markEscalated()
+    # Not resolved: delegate progression and escalation decision to session logic
+    escalated_now = ctx.continueTroubleshooting(step)
+    if escalated_now:
         return jsonify(ctx.getSummary()), 200
 
     # Otherwise continue troubleshooting
@@ -116,7 +122,8 @@ def escalate_session():
         return jsonify({"error": "invalid sessionId"}), 400
 
     ctx = SESSIONS[session_id]
-    ctx.markEscalated()
+    if not ctx.markEscalated():
+        return jsonify({"error": "invalid state transition for escalation"}), 400
 
     return jsonify(ctx.getSummary()), 200
 

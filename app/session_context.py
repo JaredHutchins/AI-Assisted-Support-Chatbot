@@ -61,6 +61,7 @@ class SessionContext:
         # Knowledge retrieval tracking
         self.attemptedSteps = []
         self.currentStepIndex = 0
+        self.maxSteps = 3
 
     def advanceState(self, nextState: str) -> bool:
         """
@@ -94,7 +95,7 @@ class SessionContext:
         self.currentState = nextState
         return True
 
-    def setIssue(self, product: str, problem: str) -> None:
+    def setIssue(self, product: str, problem: str, maxSteps: int = 3) -> None:
         """
         Capture the product and problem context for this session.
         """
@@ -102,6 +103,36 @@ class SessionContext:
         self.problem = problem
         self.attemptedSteps = []
         self.currentStepIndex = 0
+        self.maxSteps = max(1, int(maxSteps))
+
+    def startSession(self, product: str, problem: str, maxSteps: int = 3) -> bool:
+        """
+        Initialize issue context and advance to KnowledgeRetrieval.
+        """
+        self.setIssue(product, problem, maxSteps)
+        return (
+            self.advanceState("Idle")
+            and self.advanceState("IssueCapture")
+            and self.advanceState("KnowledgeRetrieval")
+        )
+
+    def restoreKnowledgeRetrieval(
+        self,
+        product: str,
+        problem: str,
+        attemptedSteps: list,
+        stepIndex: int,
+        maxSteps: int = 3
+    ) -> bool:
+        """
+        Restore a stateless UI request into KnowledgeRetrieval state.
+        """
+        if not self.startSession(product, problem, maxSteps):
+            return False
+
+        self.attemptedSteps = list(attemptedSteps)
+        self.currentStepIndex = max(0, int(stepIndex))
+        return True
 
     def recordAttempt(self, step: str) -> None:
         """
@@ -109,6 +140,42 @@ class SessionContext:
         """
         self.attemptedSteps.append(step)
         self.currentStepIndex += 1
+
+    def continueTroubleshooting(self, currentStep: str) -> bool:
+        """
+        Process an unresolved step and return True if escalation is required.
+        """
+        if self.currentState != "KnowledgeRetrieval":
+            return False
+
+        if currentStep:
+            self.recordAttempt(currentStep)
+
+        # Explicit UML self-loop while troubleshooting continues.
+        self.advanceState("KnowledgeRetrieval")
+
+        if self.currentStepIndex >= self.maxSteps:
+            return self.markEscalated()
+
+        return False
+
+    def resolveTroubleshooting(self, currentStep: str) -> bool:
+        """
+        Resolve from the current troubleshooting step.
+        """
+        if self.currentState != "KnowledgeRetrieval":
+            return False
+
+        if currentStep and (not self.attemptedSteps or self.attemptedSteps[-1] != currentStep):
+            self.attemptedSteps.append(currentStep)
+
+        return self.markResolved()
+
+    def getMaxSteps(self) -> int:
+        """
+        Return the configured maximum number of troubleshooting steps.
+        """
+        return self.maxSteps
 
     def getSummary(self) -> dict:
         """
@@ -123,23 +190,43 @@ class SessionContext:
             "escalated": self.isEscalated,
         }
 
-    def markResolved(self) -> None:
+    def markResolved(self) -> bool:
         """
         Mark the session as successfully resolved.
 
-        Once resolved, no further state transitions should occur.
+        UML terminal path:
+            KnowledgeRetrieval -> ResolutionDelivered -> SessionComplete
         """
+        if self.currentState != "KnowledgeRetrieval":
+            return False
+
+        if not self.advanceState("ResolutionDelivered"):
+            return False
+        if not self.advanceState("SessionComplete"):
+            return False
+
         self.isResolved = True
         self.isEscalated = False
+        return True
 
-    def markEscalated(self) -> None:
+    def markEscalated(self) -> bool:
         """
         Mark the session as escalated to a higher support tier.
 
-        Escalation is terminal and mutually exclusive with resolution.
+        UML terminal path:
+            KnowledgeRetrieval -> EscalationPrepared -> SessionComplete
         """
+        if self.currentState != "KnowledgeRetrieval":
+            return False
+
+        if not self.advanceState("EscalationPrepared"):
+            return False
+        if not self.advanceState("SessionComplete"):
+            return False
+
         self.isEscalated = True
         self.isResolved = False
+        return True
 
     def isTerminal(self) -> bool:
         """
@@ -148,4 +235,4 @@ class SessionContext:
         Returns:
             True if resolved or escalated, otherwise False.
         """
-        return self.isResolved or self.isEscalated
+        return self.currentState == "SessionComplete" or self.isResolved or self.isEscalated

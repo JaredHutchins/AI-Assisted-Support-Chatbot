@@ -11,45 +11,15 @@ Nothing fancy here. This is intentional.
 
 
 from flask import Flask, render_template, request
+from app.flows.product_troubleshooting_flow import ProductTroubleshootingFlow
+from app.knowledge_base import load_knowledge_base
 from app.routes.session_routes import session_routes
+from app.session_context import SessionContext
 
-# Demo knowledge base (deterministic, product-specific structure)
-KNOWLEDGE_BASE = {
-    "Widget A": {
-        "Won't power on": [
-            "Check power cable",
-            "Check battery",
-            "Check battery indicator LED"
-        ],
-        "Physical damage": [
-            "Inspect device casing",
-            "Check for cracked screen",
-            "Verify device powers on at all"
-        ],
-        "Erratic behavior": [
-            "Restart the device",
-            "Check for recent drops or impacts",
-            "Reset device settings"
-        ]
-    },
-    "Widget B": {
-        "Won't power on": [
-            "Check power cable",
-            "Check battery",
-            "Check battery indicator LED"
-        ],
-        "Physical damage": [
-            "Inspect device casing",
-            "Check for cracked screen",
-            "Verify device powers on at all"
-        ],
-        "Erratic behavior": [
-            "Restart the device",
-            "Check for recent drops or impacts",
-            "Reset device settings"
-        ]
-    }
-}
+KNOWLEDGE_BASE = load_knowledge_base()
+
+# Reasoning component aligned with UML flow structure.
+FLOW_ENGINE = ProductTroubleshootingFlow(KNOWLEDGE_BASE)
 
 
  # NOTE:
@@ -101,6 +71,15 @@ def create_app() -> Flask:
         current_step = None
         current_state = "Idle"
 
+        def parse_step_index(raw_value: str) -> int:
+            try:
+                return max(0, int(raw_value))
+            except (TypeError, ValueError):
+                return 0
+
+        def get_steps(selected_product: str, selected_problem: str) -> list:
+            return FLOW_ENGINE.retrieveArticle(selected_product, selected_problem)
+
         if request.method == "POST":
             action = request.form.get("action")
 
@@ -109,56 +88,72 @@ def create_app() -> Flask:
                 product = request.form.get("product")
                 problem = request.form.get("problem")
                 description = request.form.get("description")
+                steps = get_steps(product, problem)
+                ctx = SessionContext("ui-session")
 
-                started = True
-                step_index = 0
-                attempted_steps = []
-
-                current_step = KNOWLEDGE_BASE[product][problem][step_index]
+                if steps and ctx.startSession(product, problem, len(steps)):
+                    started = True
+                    step_index = ctx.currentStepIndex
+                    attempted_steps = list(ctx.attemptedSteps)
+                    current_step = FLOW_ENGINE.getNextStep(product, problem, step_index)
+                    current_state = ctx.currentState
 
             # Troubleshooting loop
             elif action == "not_resolved":
                 product = request.form.get("product")
                 problem = request.form.get("problem")
                 description = request.form.get("description")
-                step_index = int(request.form.get("step_index"))
+                step_index = parse_step_index(request.form.get("step_index"))
                 attempted_steps = request.form.getlist("attempted_steps")
+                steps = get_steps(product, problem)
+                ctx = SessionContext("ui-session")
 
-                steps = KNOWLEDGE_BASE[product][problem]
+                if steps and ctx.restoreKnowledgeRetrieval(
+                    product=product,
+                    problem=problem,
+                    attemptedSteps=attempted_steps,
+                    stepIndex=step_index,
+                    maxSteps=len(steps)
+                ):
+                    current_step = FLOW_ENGINE.getNextStep(product, problem, ctx.currentStepIndex)
 
-                # Record the step that was just attempted
-                if step_index < len(steps):
-                    attempted_steps.append(steps[step_index])
+                    escalated_now = ctx.continueTroubleshooting(current_step)
+                    attempted_steps = list(ctx.attemptedSteps)
+                    step_index = ctx.currentStepIndex
 
-                # Advance step index
-                step_index += 1
-
-                # Steps exhausted → terminal escalation
-                if step_index >= len(steps):
-                    escalation_available = True
-                    escalated = True
-                    started = False
-                    current_step = None
-                    step_index = len(steps)  # clamp to prevent runaway
-                else:
-                    started = True
-                    current_step = steps[step_index]
+                    if escalated_now or step_index >= len(steps):
+                        escalation_available = True
+                        escalated = True
+                        started = False
+                        current_state = "Escalated"
+                        current_step = None
+                    else:
+                        started = True
+                        current_state = ctx.currentState
+                        current_step = FLOW_ENGINE.getNextStep(product, problem, step_index)
 
             elif action == "resolved":
                 product = request.form.get("product")
                 problem = request.form.get("problem")
                 description = request.form.get("description")
-                step_index = int(request.form.get("step_index", 0))
+                step_index = parse_step_index(request.form.get("step_index"))
                 attempted_steps = request.form.getlist("attempted_steps")
+                steps = get_steps(product, problem)
+                ctx = SessionContext("ui-session")
 
-                steps = KNOWLEDGE_BASE[product][problem]
-                if 0 <= step_index < len(steps):
-                    current_step = steps[step_index]
-                    if not attempted_steps or attempted_steps[-1] != current_step:
-                        attempted_steps.append(current_step)
-
-                started = True
-                current_state = "Resolved"
+                if steps and ctx.restoreKnowledgeRetrieval(
+                    product=product,
+                    problem=problem,
+                    attemptedSteps=attempted_steps,
+                    stepIndex=step_index,
+                    maxSteps=len(steps)
+                ):
+                    current_step = FLOW_ENGINE.getNextStep(product, problem, ctx.currentStepIndex)
+                    if current_step and ctx.resolveTroubleshooting(current_step):
+                        attempted_steps = list(ctx.attemptedSteps)
+                        step_index = ctx.currentStepIndex
+                        started = True
+                        current_state = "Resolved"
 
             elif action == "escalate":
                 description = request.form.get("description")
