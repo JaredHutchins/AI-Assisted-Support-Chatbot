@@ -143,8 +143,26 @@ def get_status():
     if not session_id:
         return jsonify({"error": "sessionId is required"}), 400
 
+    if session_id not in SESSIONS:
+        return jsonify({"error": "invalid sessionId"}), 400
+
+    ctx = SESSIONS[session_id]
+
+    # Keep status explicit so the caller can quickly branch UI behavior.
+    if ctx.isResolved:
+        status = "resolved"
+    elif ctx.isEscalated:
+        status = "escalated"
+    else:
+        status = "in_progress"
+
     return jsonify({
-        "sessionId": session_id,
-        "status": "unknown",
-        "terminal": False
+        "sessionId": ctx.sessionId,
+        "status": status,
+        "currentState": ctx.currentState,
+        "stepIndex": ctx.currentStepIndex,
+        "attemptedSteps": list(ctx.attemptedSteps),
+        "resolved": ctx.isResolved,
+        "escalated": ctx.isEscalated,
+        "terminal": ctx.isTerminal(),
     }), 200
