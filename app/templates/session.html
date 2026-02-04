@@ -41,7 +41,7 @@
     <label for="product">Product:</label><br>
     <select name="product" id="product" required>
         <option value="">-- Select a product --</option>
-        {% for product_name in product_problem_map.keys() %}
+        {% for product_name in product_problem_map %}
         <option value="{{ product_name }}">{{ product_name }}</option>
         {% endfor %}
     </select>
@@ -124,15 +124,15 @@
 {% endfor %}
 </ul>
 
-<label for="notes">Agent Notes:</label><br>
-<textarea id="notes" rows="4" cols="50"
+<label for="resolvedNotes">Agent Notes:</label><br>
+<textarea id="resolvedNotes" rows="4" cols="50"
           placeholder="Additional context for this resolved session"></textarea>
 
 <br><br>
 <form method="get" action="/session">
     <input type="hidden" name="submitted" value="1">
     <input type="hidden" name="outcome" value="resolved">
-    <button type="submit" id="submitEscalationBtn" disabled>
+    <button type="submit" id="submitResolvedBtn" disabled>
         Submit Summary
     </button>
 </form>
@@ -156,8 +156,8 @@
 {% endfor %}
 </ul>
 
-<label for="notes">Agent Notes:</label><br>
-<textarea id="notes" rows="4" cols="50"
+<label for="escalationNotes">Agent Notes:</label><br>
+<textarea id="escalationNotes" rows="4" cols="50"
           placeholder="Additional context for Tier‑2 support"></textarea>
 
 <br><br>
@@ -171,10 +171,15 @@
 </form>
 {% endif %}
 
+<script id="problemOptionsJson" type="application/json">
+{{ product_problem_map | default({}, true) | tojson }}
+</script>
+
 <script>
     const productSelect = document.getElementById("product");
     const problemSelect = document.getElementById("problem");
-    const problemOptionsByProduct = {{ product_problem_map | default({}, true) | tojson }};
+    const optionsJson = document.getElementById("problemOptionsJson");
+    const problemOptionsByProduct = optionsJson ? JSON.parse(optionsJson.textContent) : {};
 
     if (productSelect && problemSelect) {
         const renderProblemOptions = (selectedProduct) => {
@@ -201,14 +206,21 @@
     </script>
 
 <script>
-    const notesField = document.getElementById("notes");
-    const submitBtn = document.getElementById("submitEscalationBtn");
+    const notesConfigs = [
+        { fieldId: "resolvedNotes", buttonId: "submitResolvedBtn" },
+        { fieldId: "escalationNotes", buttonId: "submitEscalationBtn" }
+    ];
 
-    if (notesField && submitBtn) {
-        notesField.addEventListener("input", () => {
-            submitBtn.disabled = notesField.value.trim().length === 0;
-        });
-    }
+    notesConfigs.forEach(({ fieldId, buttonId }) => {
+        const field = document.getElementById(fieldId);
+        const button = document.getElementById(buttonId);
+
+        if (field && button) {
+            field.addEventListener("input", () => {
+                button.disabled = field.value.trim().length === 0;
+            });
+        }
+    });
 </script>
 
 {% endif %}
