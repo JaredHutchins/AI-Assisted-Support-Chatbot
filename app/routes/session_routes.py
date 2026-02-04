@@ -45,7 +45,14 @@ def start_session():
 
     ctx = SessionContext(session_id)
     ctx.setIssue(product, issue_description, max_steps)
-    ctx.advanceState("Idle")
+
+    initialized = (
+        ctx.advanceState("Idle")
+        and ctx.advanceState("IssueCapture")
+        and ctx.advanceState("KnowledgeRetrieval")
+    )
+    if not initialized:
+        return jsonify({"error": "failed to initialize session state"}), 500
 
     SESSIONS[session_id] = ctx
 
@@ -71,7 +78,8 @@ def submit_step():
 
     # If resolved, mark and stop
     if resolved is True:
-        ctx.markResolved()
+        if not ctx.markResolved():
+            return jsonify({"error": "invalid state transition for resolution"}), 400
         return jsonify({
             "sessionId": ctx.sessionId,
             "currentState": ctx.currentState,
@@ -82,11 +90,16 @@ def submit_step():
     if step:
         ctx.recordAttempt(step)
 
+    # Explicit self-loop while continuing troubleshooting
+    if ctx.currentState == "KnowledgeRetrieval":
+        ctx.advanceState("KnowledgeRetrieval")
+
     # HARD STOP: no more steps available → escalate BEFORE advancing index
     max_steps = ctx.getMaxSteps()  # authoritative per-problem step count
 
     if ctx.currentStepIndex >= max_steps:
-        ctx.markEscalated()
+        if not ctx.markEscalated():
+            return jsonify({"error": "invalid state transition for escalation"}), 400
         return jsonify(ctx.getSummary()), 200
 
     # Otherwise continue troubleshooting
@@ -117,7 +130,8 @@ def escalate_session():
         return jsonify({"error": "invalid sessionId"}), 400
 
     ctx = SESSIONS[session_id]
-    ctx.markEscalated()
+    if not ctx.markEscalated():
+        return jsonify({"error": "invalid state transition for escalation"}), 400
 
     return jsonify(ctx.getSummary()), 200
 

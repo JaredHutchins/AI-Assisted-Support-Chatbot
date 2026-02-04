@@ -131,23 +131,43 @@ class SessionContext:
             "escalated": self.isEscalated,
         }
 
-    def markResolved(self) -> None:
+    def markResolved(self) -> bool:
         """
         Mark the session as successfully resolved.
 
-        Once resolved, no further state transitions should occur.
+        UML terminal path:
+            KnowledgeRetrieval -> ResolutionDelivered -> SessionComplete
         """
+        if self.currentState != "KnowledgeRetrieval":
+            return False
+
+        if not self.advanceState("ResolutionDelivered"):
+            return False
+        if not self.advanceState("SessionComplete"):
+            return False
+
         self.isResolved = True
         self.isEscalated = False
+        return True
 
-    def markEscalated(self) -> None:
+    def markEscalated(self) -> bool:
         """
         Mark the session as escalated to a higher support tier.
 
-        Escalation is terminal and mutually exclusive with resolution.
+        UML terminal path:
+            KnowledgeRetrieval -> EscalationPrepared -> SessionComplete
         """
+        if self.currentState != "KnowledgeRetrieval":
+            return False
+
+        if not self.advanceState("EscalationPrepared"):
+            return False
+        if not self.advanceState("SessionComplete"):
+            return False
+
         self.isEscalated = True
         self.isResolved = False
+        return True
 
     def isTerminal(self) -> bool:
         """
@@ -156,4 +176,4 @@ class SessionContext:
         Returns:
             True if resolved or escalated, otherwise False.
         """
-        return self.isResolved or self.isEscalated
+        return self.currentState == "SessionComplete" or self.isResolved or self.isEscalated
