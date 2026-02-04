@@ -10,6 +10,7 @@ Thin HTTP orchestration layer only.
 
 from flask import Blueprint, request, jsonify
 
+from app.knowledge_base import get_max_steps
 # Session engine (authoritative logic)
 # NOTE: Import path must match existing engine module
 from app.session_context import SessionContext
@@ -38,10 +39,18 @@ def start_session():
     session_id = data.get("sessionId")
     product = data.get("product")
     issue_description = data.get("issueDescription")
-    max_steps = data.get("maxSteps", 3)
+    requested_max_steps = data.get("maxSteps")
 
     if not session_id or not product or not issue_description:
         return jsonify({"error": "sessionId, product, and issueDescription are required"}), 400
+
+    if requested_max_steps is None:
+        max_steps = get_max_steps(product, issue_description, default=3)
+    else:
+        try:
+            max_steps = max(1, int(requested_max_steps))
+        except (TypeError, ValueError):
+            return jsonify({"error": "maxSteps must be a positive integer"}), 400
 
     ctx = SessionContext(session_id)
     initialized = ctx.startSession(product, issue_description, max_steps)

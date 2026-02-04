@@ -12,46 +12,11 @@ Nothing fancy here. This is intentional.
 
 from flask import Flask, render_template, request
 from app.flows.product_troubleshooting_flow import ProductTroubleshootingFlow
+from app.knowledge_base import load_knowledge_base
 from app.routes.session_routes import session_routes
 from app.session_context import SessionContext
 
-# Demo knowledge base (deterministic, product-specific structure)
-KNOWLEDGE_BASE = {
-    "Widget A": {
-        "Won't power on": [
-            "Check power cable",
-            "Check battery",
-            "Check battery indicator LED"
-        ],
-        "Physical damage": [
-            "Inspect device casing",
-            "Check for cracked screen",
-            "Verify device powers on at all"
-        ],
-        "Erratic behavior": [
-            "Restart the device",
-            "Check for recent drops or impacts",
-            "Reset device settings"
-        ]
-    },
-    "Widget B": {
-        "Won't power on": [
-            "Check power cable",
-            "Check battery",
-            "Check battery indicator LED"
-        ],
-        "Physical damage": [
-            "Inspect device casing",
-            "Check for cracked screen",
-            "Verify device powers on at all"
-        ],
-        "Erratic behavior": [
-            "Restart the device",
-            "Check for recent drops or impacts",
-            "Reset device settings"
-        ]
-    }
-}
+KNOWLEDGE_BASE = load_knowledge_base()
 
 # Reasoning component aligned with UML flow structure.
 FLOW_ENGINE = ProductTroubleshootingFlow(KNOWLEDGE_BASE)

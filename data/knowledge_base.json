@@ -1,0 +1,36 @@
+{
+  "Widget A": {
+    "Won't power on": [
+      "Check power cable",
+      "Check battery",
+      "Check battery indicator LED"
+    ],
+    "Physical damage": [
+      "Inspect device casing",
+      "Check for cracked screen",
+      "Verify device powers on at all"
+    ],
+    "Erratic behavior": [
+      "Restart the device",
+      "Check for recent drops or impacts",
+      "Reset device settings"
+    ]
+  },
+  "Widget B": {
+    "Won't power on": [
+      "Check power cable",
+      "Check battery",
+      "Check battery indicator LED"
+    ],
+    "Physical damage": [
+      "Inspect device casing",
+      "Check for cracked screen",
+      "Verify device powers on at all"
+    ],
+    "Erratic behavior": [
+      "Restart the device",
+      "Check for recent drops or impacts",
+      "Reset device settings"
+    ]
+  }
+}
