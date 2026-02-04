@@ -41,8 +41,9 @@
     <label for="product">Product:</label><br>
     <select name="product" id="product" required>
         <option value="">-- Select a product --</option>
-        <option value="Widget A">Widget A</option>
-        <option value="Widget B">Widget B</option>
+        {% for product_name in product_problem_map.keys() %}
+        <option value="{{ product_name }}">{{ product_name }}</option>
+        {% endfor %}
     </select>
 
     <br><br>
@@ -50,9 +51,6 @@
     <label for="problem">Problem:</label><br>
     <select name="problem" id="problem" required disabled>
         <option value="">-- Select a problem --</option>
-        <option value="Won't power on">Won't power on</option>
-        <option value="Physical damage">Physical damage</option>
-        <option value="Erratic behavior">Erratic behavior</option>
     </select>
 
     <br><br>
@@ -176,16 +174,29 @@
 <script>
     const productSelect = document.getElementById("product");
     const problemSelect = document.getElementById("problem");
+    const problemOptionsByProduct = {{ product_problem_map | default({}, true) | tojson }};
 
     if (productSelect && problemSelect) {
-        productSelect.addEventListener("change", () => {
-            if (productSelect.value) {
-                problemSelect.disabled = false;
-            } else {
-                problemSelect.disabled = true;
-                problemSelect.value = "";
+        const renderProblemOptions = (selectedProduct) => {
+            problemSelect.innerHTML = '<option value="">-- Select a problem --</option>';
+
+            const problems = problemOptionsByProduct[selectedProduct] || [];
+            for (const problem of problems) {
+                const option = document.createElement("option");
+                option.value = problem;
+                option.textContent = problem;
+                problemSelect.appendChild(option);
             }
+
+            problemSelect.disabled = problems.length === 0;
+        };
+
+        productSelect.addEventListener("change", () => {
+            renderProblemOptions(productSelect.value);
         });
+
+        // If product is already selected (for example after browser autofill), sync problems.
+        renderProblemOptions(productSelect.value);
     }
     </script>
 

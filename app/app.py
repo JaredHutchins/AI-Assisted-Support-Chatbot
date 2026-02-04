@@ -22,6 +22,18 @@ KNOWLEDGE_BASE = load_knowledge_base()
 FLOW_ENGINE = ProductTroubleshootingFlow(KNOWLEDGE_BASE)
 
 
+def build_product_problem_map(knowledge_base: dict) -> dict:
+    """
+    Build a simple map the template can use for product/problem dropdowns.
+    """
+    # One source of truth keeps the form options in sync with the knowledge file.
+    return {
+        product_name: list(problem_map.keys())
+        for product_name, problem_map in knowledge_base.items()
+        if isinstance(problem_map, dict)
+    }
+
+
  # NOTE:
  # This file is intentionally minimal.
  # Core session logic, state handling, and resolution or escalation decisions
@@ -70,8 +82,10 @@ def create_app() -> Flask:
         attempted_steps = []
         current_step = None
         current_state = "Idle"
+        product_problem_map = build_product_problem_map(KNOWLEDGE_BASE)
 
         def parse_step_index(raw_value: str) -> int:
+            # Hidden form values can still be tampered with; fail safe to 0.
             try:
                 return max(0, int(raw_value))
             except (TypeError, ValueError):
@@ -171,7 +185,8 @@ def create_app() -> Flask:
             step_index=step_index,
             attempted_steps=attempted_steps,
             current_step=current_step,
-            current_state=current_state
+            current_state=current_state,
+            product_problem_map=product_problem_map,
         )
 
     return app
