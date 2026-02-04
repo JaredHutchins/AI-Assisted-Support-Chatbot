@@ -44,13 +44,7 @@ def start_session():
         return jsonify({"error": "sessionId, product, and issueDescription are required"}), 400
 
     ctx = SessionContext(session_id)
-    ctx.setIssue(product, issue_description, max_steps)
-
-    initialized = (
-        ctx.advanceState("Idle")
-        and ctx.advanceState("IssueCapture")
-        and ctx.advanceState("KnowledgeRetrieval")
-    )
+    initialized = ctx.startSession(product, issue_description, max_steps)
     if not initialized:
         return jsonify({"error": "failed to initialize session state"}), 500
 
@@ -86,20 +80,9 @@ def submit_step():
             "terminal": ctx.isTerminal()
         }), 200
 
-    # Not resolved: record attempt
-    if step:
-        ctx.recordAttempt(step)
-
-    # Explicit self-loop while continuing troubleshooting
-    if ctx.currentState == "KnowledgeRetrieval":
-        ctx.advanceState("KnowledgeRetrieval")
-
-    # HARD STOP: no more steps available → escalate BEFORE advancing index
-    max_steps = ctx.getMaxSteps()  # authoritative per-problem step count
-
-    if ctx.currentStepIndex >= max_steps:
-        if not ctx.markEscalated():
-            return jsonify({"error": "invalid state transition for escalation"}), 400
+    # Not resolved: delegate progression and escalation decision to session logic
+    escalated_now = ctx.continueTroubleshooting(step)
+    if escalated_now:
         return jsonify(ctx.getSummary()), 200
 
     # Otherwise continue troubleshooting

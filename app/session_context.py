@@ -105,12 +105,71 @@ class SessionContext:
         self.currentStepIndex = 0
         self.maxSteps = max(1, int(maxSteps))
 
+    def startSession(self, product: str, problem: str, maxSteps: int = 3) -> bool:
+        """
+        Initialize issue context and advance to KnowledgeRetrieval.
+        """
+        self.setIssue(product, problem, maxSteps)
+        return (
+            self.advanceState("Idle")
+            and self.advanceState("IssueCapture")
+            and self.advanceState("KnowledgeRetrieval")
+        )
+
+    def restoreKnowledgeRetrieval(
+        self,
+        product: str,
+        problem: str,
+        attemptedSteps: list,
+        stepIndex: int,
+        maxSteps: int = 3
+    ) -> bool:
+        """
+        Restore a stateless UI request into KnowledgeRetrieval state.
+        """
+        if not self.startSession(product, problem, maxSteps):
+            return False
+
+        self.attemptedSteps = list(attemptedSteps)
+        self.currentStepIndex = max(0, int(stepIndex))
+        return True
+
     def recordAttempt(self, step: str) -> None:
         """
         Record an attempted troubleshooting step.
         """
         self.attemptedSteps.append(step)
         self.currentStepIndex += 1
+
+    def continueTroubleshooting(self, currentStep: str) -> bool:
+        """
+        Process an unresolved step and return True if escalation is required.
+        """
+        if self.currentState != "KnowledgeRetrieval":
+            return False
+
+        if currentStep:
+            self.recordAttempt(currentStep)
+
+        # Explicit UML self-loop while troubleshooting continues.
+        self.advanceState("KnowledgeRetrieval")
+
+        if self.currentStepIndex >= self.maxSteps:
+            return self.markEscalated()
+
+        return False
+
+    def resolveTroubleshooting(self, currentStep: str) -> bool:
+        """
+        Resolve from the current troubleshooting step.
+        """
+        if self.currentState != "KnowledgeRetrieval":
+            return False
+
+        if currentStep and (not self.attemptedSteps or self.attemptedSteps[-1] != currentStep):
+            self.attemptedSteps.append(currentStep)
+
+        return self.markResolved()
 
     def getMaxSteps(self) -> int:
         """
